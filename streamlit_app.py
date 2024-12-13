@@ -155,14 +155,7 @@ def display_dashboard(data):
     st.write("Tabellarische Übersicht der Boards:")
     st.dataframe(styled_df)
 
-    # Diagramme für jedes Board erstellen
-    for _, row in df.iterrows():
-        board_name = row['board_name']
-        values = row[2:].values  # Diagramm zeigt nur Statusarten
-        labels = row.index[2:]
 
-        st.subheader(f"Statusverteilung für {board_name}")
-        st.bar_chart(pd.DataFrame(values, index=labels, columns=["Anzahl"]))
 
 # Beispiel-URLs
 original_urls = [
