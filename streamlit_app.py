@@ -132,6 +132,10 @@ def display_dashboard(data):
         (df['Termin gebucht'] + df['Vorquali-Phase'] + df['Kein Interesse'])
     ).fillna(0) * 100
 
+    # Neuordnung der Spalten
+    columns_order = ['board_name', 'Conversionrate', 'Termin gebucht', 'Vorquali-Phase', 'Kein Interesse', 'Entscheidungsträger noch nicht erreicht']
+    df = df[columns_order]
+
     # Tabellarische Übersicht anzeigen
     st.title("Datenanalyse Dashboard")
     st.write("Tabellarische Übersicht der Boards:")
@@ -140,8 +144,8 @@ def display_dashboard(data):
     # Diagramme für jedes Board erstellen
     for _, row in df.iterrows():
         board_name = row['board_name']
-        values = row[1:-1].values
-        labels = row.index[1:-1]
+        values = row[2:].values  # Diagramm zeigt nur Statusarten
+        labels = row.index[2:]
 
         st.subheader(f"Statusverteilung für {board_name}")
         st.bar_chart(pd.DataFrame(values, index=labels, columns=["Anzahl"]))
