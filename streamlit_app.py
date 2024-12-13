@@ -136,10 +136,24 @@ def display_dashboard(data):
     columns_order = ['board_name', 'Conversionrate', 'Termin gebucht', 'Vorquali-Phase', 'Kein Interesse', 'Entscheidungsträger noch nicht erreicht']
     df = df[columns_order]
 
+    # Funktion für bedingte Farbgebung
+    def style_conversion_rate(value):
+        if value > 20:
+            return 'color: green; font-weight: bold;'
+        elif 10 <= value <= 20:
+            return 'color: orange; font-weight: bold;'
+        else:
+            return 'color: red; font-weight: bold;'
+
+    # Styling der DataFrame-Tabelle
+    styled_df = df.style.format({
+        'Conversionrate': '{:.2f}%'  # Prozentformat
+    }).applymap(style_conversion_rate, subset=['Conversionrate'])
+
     # Tabellarische Übersicht anzeigen
     st.title("Datenanalyse Dashboard")
     st.write("Tabellarische Übersicht der Boards:")
-    st.dataframe(df)
+    st.dataframe(styled_df)
 
     # Diagramme für jedes Board erstellen
     for _, row in df.iterrows():
