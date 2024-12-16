@@ -5,15 +5,8 @@ import pandas as pd
 import streamlit as st
 from rapidfuzz import process, fuzz
 from datetime import datetime, timedelta, timezone
-
-# [Alle oben definierten Funktionen hier einfügen: format_url, analyze_board, get_start_of_current_week, analyze_multiple_boards, merge_similar_boards, display_dashboard]
-import asyncio
-import aiohttp
-from collections import Counter
-import pandas as pd
-import streamlit as st
-from rapidfuzz import process, fuzz
-from datetime import datetime, timedelta, timezone
+import plotly.express as px
+import plotly.graph_objects as go
 
 # Funktion, um die URL zu formatieren
 def format_url(original_url):
@@ -149,10 +142,11 @@ def merge_similar_boards(data, similarity_threshold=85):
             "status_changes": Counter()
         }
         for b_name in similar_boards:
-            matching_board = next(b for b in data if b["board_name"] == b_name)
-            merged_board["status_counts"].update(matching_board["status_counts"])
-            merged_board["status_changes"].update(matching_board["status_changes"])
-            processed.add(b_name)
+            matching_board = next((b for b in data if b["board_name"] == b_name), None)
+            if matching_board:
+                merged_board["status_counts"].update(matching_board["status_counts"])
+                merged_board["status_changes"].update(matching_board["status_changes"])
+                processed.add(b_name)
 
         merged_data.append(merged_board)
 
@@ -163,112 +157,142 @@ def merge_similar_boards(data, similarity_threshold=85):
 
     return merged_data
 
-# Funktion zur Anzeige des Dashboards
+# Funktion zur Anzeige des Dashboards mit Plotly-Visualisierungen
 def display_dashboard(data):
-    # Erstelle eine Liste für die finalen Tabellenzeilen
-    table_rows = []
-    for board in data:
-        row = {
-            "board_name": board["board_name"],
-            "Conversionrate": 0  # Temporär, später berechnet
-        }
-        # Durchlaufe alle relevanten Status
-        for status in ['Termin gebucht', 'Vorquali-Phase', 'Kein Interesse', 'Entscheidungsträger noch nicht erreicht']:
-            count = board["status_counts"].get(status, 0)
-            change = board["status_changes"].get(status, 0)
-            if change > 0:
-                row[status] = f"{count} (+{change})"
-            elif change < 0:
-                row[status] = f"{count} ({change})"
+    try:
+        st.title("Datenanalyse Dashboard")
+        st.write("Tabellarische Übersicht der Boards:")
+
+        # Erstelle eine Liste für die finalen Tabellenzeilen
+        table_rows = []
+        for board in data:
+            row = {
+                "board_name": board["board_name"],
+                "Conversionrate": 0  # Temporär, später berechnet
+            }
+            # Durchlaufe alle relevanten Status
+            for status in ['Termin gebucht', 'Vorquali-Phase', 'Kein Interesse', 'Entscheidungsträger noch nicht erreicht']:
+                count = board["status_counts"].get(status, 0)
+                change = board["status_changes"].get(status, 0)
+                if change > 0:
+                    row[status] = f"{count} (+{change})"
+                elif change < 0:
+                    row[status] = f"{count} ({change})"
+                else:
+                    row[status] = f"{count}"
+            table_rows.append(row)
+
+        df = pd.DataFrame(table_rows)
+
+        # Sicherstellen, dass alle erwarteten Spalten existieren
+        expected_columns = ['Termin gebucht', 'Vorquali-Phase', 'Kein Interesse', 'Entscheidungsträger noch nicht erreicht']
+        for col in expected_columns:
+            if col not in df.columns:
+                df[col] = "0"
+
+        # Berechnung der Conversionrate basierend auf den Counts
+        def extract_number(val):
+            try:
+                return int(str(val).split(' ')[0])
+            except:
+                return 0
+
+        df['Termin gebucht_num'] = df['Termin gebucht'].apply(extract_number)
+        df['Vorquali-Phase_num'] = df['Vorquali-Phase'].apply(extract_number)
+        df['Kein Interesse_num'] = df['Kein Interesse'].apply(extract_number)
+
+        df['Conversionrate'] = (
+            (df['Termin gebucht_num'] + df['Vorquali-Phase_num']) /
+            (df['Termin gebucht_num'] + df['Vorquali-Phase_num'] + df['Kein Interesse_num'])
+        ).fillna(0) * 100
+
+        # Formatierung der Conversionrate
+        df['Conversionrate'] = df['Conversionrate'].map("{:.2f}%".format)
+
+        # Entferne temporäre Spalten
+        df.drop(['Termin gebucht_num', 'Vorquali-Phase_num', 'Kein Interesse_num'], axis=1, inplace=True)
+
+        # Reordne die Spalten
+        columns_order = ['board_name', 'Conversionrate', 'Termin gebucht', 'Vorquali-Phase', 'Kein Interesse', 'Entscheidungsträger noch nicht erreicht']
+        df = df[columns_order]
+
+        # Anzeige der Tabelle im Streamlit-Dashboard
+        st.dataframe(df)
+
+        st.markdown("---")
+        st.subheader("Detailansicht für ein ausgewähltes Board")
+
+        # Auswahl des Boards für die Detailansicht
+        selected_board_name = st.selectbox("Wähle ein Board für Details aus:", df['board_name'])
+
+        # Finde die Daten des ausgewählten Boards
+        selected_board = next((item for item in data if item["board_name"] == selected_board_name), None)
+
+        if selected_board:
+            st.write(f"### Details für **{selected_board_name}**")
+
+            # Debugging: Anzeigen der ausgewählten Board-Daten
+            st.write("#### Daten des ausgewählten Boards:")
+            st.write(selected_board)
+
+            # Erstelle ein Balkendiagramm für Statusverteilung
+            status_counts = selected_board.get("status_counts", {})
+            if status_counts:
+                status_df = pd.DataFrame(list(status_counts.items()), columns=["Status", "Anzahl"])
+
+                fig_status = px.bar(
+                    status_df, 
+                    x="Status", 
+                    y="Anzahl", 
+                    title="Statusverteilung",
+                    color="Status",
+                    text="Anzahl",
+                    labels={"Anzahl": "Anzahl der Einträge"}
+                )
+                fig_status.update_traces(textposition='outside')
+                fig_status.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+
+                st.plotly_chart(fig_status, use_container_width=True)
             else:
-                row[status] = f"{count}"
-        table_rows.append(row)
+                st.warning("Keine Statusverteilung-Daten vorhanden.")
 
-    df = pd.DataFrame(table_rows)
+            # Erstelle ein Balkendiagramm für Statusänderungen (letzte Woche)
+            status_changes = selected_board.get("status_changes", {})
+            if status_changes:
+                changes_df = pd.DataFrame(list(status_changes.items()), columns=["Status", "Änderungen"])
 
-    # Sicherstellen, dass alle erwarteten Spalten existieren
-    expected_columns = ['Termin gebucht', 'Vorquali-Phase', 'Kein Interesse', 'Entscheidungsträger noch nicht erreicht']
-    for col in expected_columns:
-        if col not in df.columns:
-            df[col] = "0"
+                fig_changes = px.bar(
+                    changes_df, 
+                    x="Status", 
+                    y="Änderungen", 
+                    title="Statusänderungen (letzte Woche)",
+                    color="Status",
+                    text="Änderungen",
+                    labels={"Änderungen": "Anzahl der Änderungen"}
+                )
+                fig_changes.update_traces(textposition='outside')
+                fig_changes.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
 
-    # Berechnung der Conversionrate basierend auf den Counts
-    def extract_number(val):
-        try:
-            return int(str(val).split(' ')[0])
-        except:
-            return 0
-
-    df['Termin gebucht_num'] = df['Termin gebucht'].apply(extract_number)
-    df['Vorquali-Phase_num'] = df['Vorquali-Phase'].apply(extract_number)
-    df['Kein Interesse_num'] = df['Kein Interesse'].apply(extract_number)
-
-    df['Conversionrate'] = (
-        (df['Termin gebucht_num'] + df['Vorquali-Phase_num']) /
-        (df['Termin gebucht_num'] + df['Vorquali-Phase_num'] + df['Kein Interesse_num'])
-    ).fillna(0) * 100
-
-    # Formatierung der Conversionrate
-    df['Conversionrate'] = df['Conversionrate'].map("{:.2f}%".format)
-
-    # Funktion zur Farbgebung der Conversionrate
-    def colorize_conversion_rate(val):
-        try:
-            num = float(val.strip('%'))
-            if num > 20:
-                color = 'green'
-            elif 10 <= num <= 20:
-                color = 'orange'
+                st.plotly_chart(fig_changes, use_container_width=True)
             else:
-                color = 'red'
-            return color
-        except:
-            return 'black'
+                st.warning("Keine Statusänderungen in der letzten Woche.")
 
-    df['Conversionrate_color'] = df['Conversionrate'].apply(colorize_conversion_rate)
-
-    # Entferne temporäre Spalten
-    df.drop(['Termin gebucht_num', 'Vorquali-Phase_num', 'Kein Interesse_num'], axis=1, inplace=True)
-
-    # Reordne die Spalten
-    columns_order = ['board_name', 'Conversionrate', 'Termin gebucht', 'Vorquali-Phase', 'Kein Interesse', 'Entscheidungsträger noch nicht erreicht']
-    df = df[columns_order]
-
-    # Anwendung von Styling mit Pandas
-    def highlight_conversion(val):
-        color = 'black'
-        if isinstance(val, str):
-            num = float(val.strip('%'))
-            if num > 20:
-                color = 'green'
-            elif 10 <= num <= 20:
-                color = 'orange'
+            # Erstelle ein Kreisdiagramm für Statusverteilung
+            if status_counts:
+                fig_pie = px.pie(
+                    status_df, 
+                    names='Status', 
+                    values='Anzahl', 
+                    title='Statusverteilung (Kreisdiagramm)',
+                    hole=0.3
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
             else:
-                color = 'red'
-        return f'color: {color}'
-
-    styled_df = df.style.applymap(highlight_conversion, subset=['Conversionrate'])
-
-    # Anpassung der Tabellenbreite und Höhe via CSS
-    css = """
-    <style>
-    .dataframe tbody tr {
-        height: 50px;
-    }
-    .dataframe thead th {
-        background-color: #f2f2f2;
-        text-align: left;
-    }
-    </style>
-    """
-
-    # Anzeige der Tabelle im Streamlit-Dashboard
-    st.title("Datenanalyse Dashboard")
-    st.write("Tabellarische Übersicht der Boards:")
-
-    # Kombiniere CSS mit der Tabelle
-    st.markdown(css, unsafe_allow_html=True)
-    st.dataframe(styled_df)
+                st.warning("Keine Daten für das Kreisdiagramm vorhanden.")
+        else:
+            st.error("Keine Daten für das ausgewählte Board gefunden.")
+    except Exception as e:
+        st.error(f"Ein unerwarteter Fehler ist aufgetreten: {e}")
 
 # Beispiel-URLs
 original_urls = [
@@ -290,6 +314,9 @@ urls_input = st.sidebar.text_area("URLs (eine pro Zeile):", "\n".join(original_u
 
 if st.sidebar.button("Analyse starten"):
     with st.spinner("Daten werden abgerufen..."):
-        data = asyncio.run(analyze_multiple_boards(urls_input))
-        merged_data = merge_similar_boards(data)
-        display_dashboard(merged_data)
+        try:
+            data = asyncio.run(analyze_multiple_boards(urls_input))
+            merged_data = merge_similar_boards(data)
+            display_dashboard(merged_data)
+        except Exception as e:
+            st.error(f"Ein unerwarteter Fehler ist aufgetreten: {e}")
