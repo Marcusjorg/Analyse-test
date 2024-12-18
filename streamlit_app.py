@@ -80,6 +80,60 @@ def calculate_status_values(pulses, status_column_id, status_labels, trigger_map
         })
     return results
 
+def regroup_triggers_after_merge(trigger_data_list):
+    """
+    Nimmt eine Liste von Trigger-Datensätzen (bereits zusammengeführter Boards) entgegen,
+    und führt erneut ein fuzzy grouping über die Trigger durch, um doppelte oder sehr ähnliche
+    Trigger zusammenzufassen.
+    """
+    if not trigger_data_list:
+        return []
+
+    # Extrahiere alle Trigger-Namen
+    all_triggers = [entry["Trigger"] for entry in trigger_data_list]
+
+    # Fuzzy-Grupperung
+    grouped_triggers, trigger_mapping = fuzzy_grouping(all_triggers, threshold=60)
+
+    # Aggregiere die Werte für jeden Trigger
+    aggregated_results = {}
+    for entry in trigger_data_list:
+        original_trigger = entry["Trigger"]
+        main_trigger = trigger_mapping.get(original_trigger, original_trigger)
+
+        if main_trigger not in aggregated_results:
+            aggregated_results[main_trigger] = {
+                "Board": entry["Board"],
+                "Trigger": main_trigger,
+                "Conversionrate": 0.0,
+                "Termin gebucht": 0,
+                "Vorquali-Phase": 0,
+                "Kein Interesse": 0,
+                "Entscheidungsträger noch nicht erreicht": 0,
+                "Summe": 0
+            }
+
+        # Werte aggregieren
+        aggregated_results[main_trigger]["Termin gebucht"] += entry["Termin gebucht"]
+        aggregated_results[main_trigger]["Vorquali-Phase"] += entry["Vorquali-Phase"]
+        aggregated_results[main_trigger]["Kein Interesse"] += entry["Kein Interesse"]
+        aggregated_results[main_trigger]["Entscheidungsträger noch nicht erreicht"] += entry["Entscheidungsträger noch nicht erreicht"]
+
+    # Nun noch die Conversionrate und Summe pro zusammengefasstem Trigger neu berechnen
+    for key, val in aggregated_results.items():
+        termin_gebucht = val["Termin gebucht"]
+        vorquali_phase = val["Vorquali-Phase"]
+        kein_interesse = val["Kein Interesse"]
+        entscheidung_nicht_erreicht = val["Entscheidungsträger noch nicht erreicht"]
+
+        total = termin_gebucht + kein_interesse
+        conversion_rate = ((termin_gebucht + vorquali_phase) / total) * 100 if total > 0 else 0
+        val["Conversionrate"] = round(conversion_rate, 2)
+        val["Summe"] = termin_gebucht + vorquali_phase + kein_interesse + entscheidung_nicht_erreicht
+
+    # Rückgabe als Liste
+    return list(aggregated_results.values())
+
 # Funktion zum Extrahieren des Spaltennamens aus möglichen Schlüsseln
 def get_column_name(col):
     possible_keys = ['title', 'name', 'label', 'text']
@@ -326,6 +380,9 @@ def merge_similar_boards(data, similarity_threshold=85):
                 merged_board["termin_gebucht_dates"].extend(matching_board["termin_gebucht_dates"])
                 merged_board["trigger_data"].extend(matching_board["trigger_data"])
                 processed.add(b_name)
+
+        # Nach dem Mergen: Triggers erneut fuzzy gruppieren
+        merged_board["trigger_data"] = regroup_triggers_after_merge(merged_board["trigger_data"])
 
         merged_data.append(merged_board)
         all_termin_gebucht_dates.extend(merged_board["termin_gebucht_dates"])
