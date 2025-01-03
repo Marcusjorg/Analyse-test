@@ -466,46 +466,106 @@ def display_dashboard(data, all_termin_gebucht_dates, all_trigger_data):
                 st.warning("Keine Statusänderungen in der letzten Woche.")
 
             st.markdown("---")
-            st.subheader("Gebuchte Termine über Zeit")
+            st.subheader("Gebuchte Termine (wöchentlich)")
 
             termin_gebucht_dates = selected_board.get("termin_gebucht_dates", [])
             if termin_gebucht_dates:
                 df_dates = pd.DataFrame(termin_gebucht_dates, columns=["TerminDatum"])
                 df_dates['TerminDatum'] = pd.to_datetime(df_dates['TerminDatum'])
-
-                if df_dates['TerminDatum'].dt.tz is not None:
-                    df_dates['TerminDatum'] = df_dates['TerminDatum'].dt.tz_convert('UTC').dt.tz_localize(None)
+                
+                # Du könntest hier zusätzlich eine Zeitzone setzen, falls gewünscht:
+                # df_dates['TerminDatum'] = df_dates['TerminDatum'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
 
                 df_dates.set_index('TerminDatum', inplace=True)
-                df_daily = df_dates.resample('D').size().reset_index(name='Anzahl_Termine')
-                df_daily = df_daily.sort_values('TerminDatum').reset_index(drop=True)
-                df_daily['Kumulative_Termine'] = df_daily['Anzahl_Termine'].cumsum()
 
-                fig_area = go.Figure()
-                line_color = "#00c875"
-                fill_color = hex_to_rgba(line_color, alpha=0.3)
+                # Wöchentliche Auswertung mit Label auf Montag:
+                df_weekly = (
+                    df_dates
+                    .resample('W-MON', label='left', closed='left')
+                    .size()
+                    .reset_index(name='Anzahl_Termine')
+                )
+                df_weekly = df_weekly.sort_values('TerminDatum').reset_index(drop=True)
+                df_weekly['Kumulative_Termine'] = df_weekly['Anzahl_Termine'].cumsum()
 
-                fig_area.add_trace(go.Scatter(
-                    x=df_daily['TerminDatum'],
-                    y=df_daily['Kumulative_Termine'],
-                    mode='lines',
-                    name='Kumulative Termine',
-                    line=dict(color=line_color),
-                    fill='tozeroy',
-                    fillcolor=fill_color,
-                    line_shape='spline',
-                    connectgaps=True
-                ))
-
-                fig_area.update_layout(
-                    title="Gebuchte Termine über Zeit",
-                    xaxis_title="Datum",
-                    yaxis_title="Anzahl Termine",
-                    xaxis=dict(tickangle=45, tickformat="%Y-%m-%d"),
-                    hovermode="x unified"
+                # Toggle zwischen "Kumulativ" und "Pro Woche"
+                darstellung = st.radio(
+                    "Darstellung:",
+                    ["Kumulativ", "Pro Woche"],
+                    horizontal=True
                 )
 
-                st.plotly_chart(fig_area, use_container_width=True, key="line_area_chart")
+                # Falls "Kumulativ" ausgewählt ist, hänge eine Dummy-Zeile an,
+                # damit die Kurve nicht direkt > 0 startet
+                if darstellung == "Kumulativ":
+                    if not df_weekly.empty:
+                        first_row = df_weekly.iloc[0].copy()
+                        first_date = first_row['TerminDatum']
+                        dummy_date = first_date - pd.Timedelta(days=7)
+                        new_row = {
+                            'TerminDatum': dummy_date,
+                            'Anzahl_Termine': 0,
+                            'Kumulative_Termine': 0
+                        }
+                        df_weekly = pd.concat([pd.DataFrame([new_row]), df_weekly], ignore_index=True)
+
+                    y_value = "Kumulative_Termine"
+                    chart_title = "Gebuchte Termine (kumulativ pro KW)"
+                else:
+                    y_value = "Anzahl_Termine"
+                    chart_title = "Gebuchte Termine (nur diese KW)"
+
+                c1, c2 = st.columns([2,1])  # linke Spalte (2/3) für Diagramm, rechte Spalte (1/3) für Tabelle
+
+                with c1:
+                    fig_weekly = go.Figure()
+                    weekly_line_color = "#00c875"
+                    weekly_fill_color = hex_to_rgba(weekly_line_color, alpha=0.3)
+
+                    fig_weekly.add_trace(go.Scatter(
+                        x=df_weekly['TerminDatum'],
+                        y=df_weekly[y_value],
+                        mode='lines+markers',
+                        name='Termine',
+                        line=dict(color=weekly_line_color),
+                        fill='tozeroy',
+                        fillcolor=weekly_fill_color,
+                        line_shape='spline'
+                    ))
+
+                    fig_weekly.update_layout(
+                        title=chart_title,
+                        xaxis_title="Montag (Start der KW)",
+                        yaxis_title="Anzahl Termine",
+                        xaxis=dict(tickangle=45),
+                        hovermode="x unified"
+                    )
+
+                    st.plotly_chart(fig_weekly, use_container_width=True)
+
+                with c2:
+                    st.write("### Gebuchte Termine pro KW")
+
+                    df_weekly_display = df_weekly.copy()
+                    # Neue Spalte mit "KW X"
+                    df_weekly_display['KW'] = "KW " + df_weekly_display['TerminDatum'].dt.isocalendar().week.astype(str)
+
+                    # Zeige abhängig von 'darstellung' entweder kumulative oder einzelne Werte an
+                    if darstellung == "Kumulativ":
+                        df_weekly_display = df_weekly_display[['KW', 'Kumulative_Termine']]
+                        df_weekly_display.rename(
+                            columns={'Kumulative_Termine': 'Termine (kumulativ)'}, 
+                            inplace=True
+                        )
+                    else:
+                        df_weekly_display = df_weekly_display[['KW', 'Anzahl_Termine']]
+                        df_weekly_display.rename(
+                            columns={'Anzahl_Termine': 'Termine (pro KW)'}, 
+                            inplace=True
+                        )
+
+                    st.dataframe(df_weekly_display)
+
             else:
                 st.warning("Keine gebuchten Termine-Daten vorhanden.")
 
@@ -530,6 +590,8 @@ def display_dashboard(data, all_termin_gebucht_dates, all_trigger_data):
     except Exception as e:
         st.error(f"Fehler bei der Anzeige des Dashboards: {e}")
 
+
+# --- Session State Handling ---
 if 'data' not in st.session_state:
     st.session_state['data'] = None
 if 'all_termin_gebucht_dates' not in st.session_state:
@@ -537,6 +599,7 @@ if 'all_termin_gebucht_dates' not in st.session_state:
 if 'all_trigger_data' not in st.session_state:
     st.session_state['all_trigger_data'] = {}
 
+# --- Sidebar-Einstellungen ---
 st.sidebar.title("Einstellungen")
 st.sidebar.write("Wählen Sie die Kategorie und geben Sie die Board-URLs ein.")
 
@@ -594,6 +657,7 @@ elif category == "Ex-Kunden" and ex_customer_urls.strip():
             "trigger_column_name": "Trigger"
         })
 
+# --- Button zum Starten der Analyse ---
 if st.sidebar.button("Analyse starten"):
     if boards:
         with st.spinner("Daten werden abgerufen..."):
@@ -608,5 +672,6 @@ if st.sidebar.button("Analyse starten"):
     else:
         st.error("Bitte geben Sie mindestens eine gültige Board-URL an.")
 
+# --- Dashboard anzeigen, falls Daten vorhanden ---
 if st.session_state['data']:
     display_dashboard(st.session_state['data'], st.session_state['all_termin_gebucht_dates'], st.session_state['all_trigger_data'])
