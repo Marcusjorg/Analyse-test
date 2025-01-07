@@ -615,6 +615,7 @@ https://view.monday.com/7751658853-e248eb0d3f38f213948a21706bb4735d?r=use1
 https://view.monday.com/7470906336-d7f6b6df950e2810f7b244a8b1641181?r=use1
 https://view.monday.com/7294579207-6c1830474fb76ee1b386c4dc6df5d375?r=use1
 https://view.monday.com/6917195148-a4e33cdd18150dbff8239a75e4f0d789?r=use1
+https://view.monday.com/8076951877-7ee7fd4cdfbd0cd0740265bc83256d0a?r=use1
 """
     current_customer_urls = st.sidebar.text_area("Geben Sie die Board-URLs ein (eine pro Zeile):", value=default_current)
 else:
