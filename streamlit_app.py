@@ -112,7 +112,7 @@ def regroup_triggers_after_merge(trigger_data_list):
         kein_interesse = val["Kein Interesse"]
         entscheidung_nicht_erreicht = val["Entscheidungsträger noch nicht erreicht"]
 
-        total = termin_gebucht + kein_interesse
+        total = termin_gebucht + kein_interesse + vorquali_phase
         conversion_rate = ((termin_gebucht + vorquali_phase) / total) * 100 if total > 0 else 0
         val["Conversionrate"] = round(conversion_rate, 2)
         val["Summe"] = termin_gebucht + vorquali_phase + kein_interesse + entscheidung_nicht_erreicht
