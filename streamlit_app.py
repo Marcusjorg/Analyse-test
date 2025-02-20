@@ -607,16 +607,13 @@ category = st.sidebar.radio("Kategorie auswählen:", ["Aktuelle Kunden", "Ex-Kun
 
 if category == "Aktuelle Kunden":
     default_current = """https://view.monday.com/6917933293-38a536695040a37293e93358c7a731dd?r=use1
-https://view.monday.com/6265759681-dc9076cc9dd4c09f1d0d59696401024b?r=use1
-https://view.monday.com/6265760602-15ff84c644fd114de2a84f58dbbcc9b2?r=use1
 https://view.monday.com/6481440664-4720ef13b76d5d34bb5b7324055907f2?r=use1
-https://view.monday.com/7741871585-2ebc2d9e8039e4f7f2dd429af1f61c0d?r=use1
-https://view.monday.com/7751658853-e248eb0d3f38f213948a21706bb4735d?r=use1
-https://view.monday.com/7470906336-d7f6b6df950e2810f7b244a8b1641181?r=use1
 https://view.monday.com/7294579207-6c1830474fb76ee1b386c4dc6df5d375?r=use1
-https://view.monday.com/6917195148-a4e33cdd18150dbff8239a75e4f0d789?r=use1
 https://view.monday.com/8076951877-7ee7fd4cdfbd0cd0740265bc83256d0a?r=use1
 https://view.monday.com/8297065790-43b32f33de4dc64392741dd3d8420b19?r=use1
+https://view.monday.com/8406426000-58ef0ed94396b812bc2e4248f30c423f?r=use1
+https://view.monday.com/8396899620-bf3ca6a724551d1d4b7c74c41c03a7f0?r=use1
+
 """
     current_customer_urls = st.sidebar.text_area("Geben Sie die Board-URLs ein (eine pro Zeile):", value=default_current)
 else:
@@ -638,6 +635,12 @@ https://view.monday.com/5855732867-98e73d205b0316c240f21e5564860f4b?r=use1
 https://view.monday.com/7741863679-9baeb49c20c15039d7acff12fdfc5856?r=use1
 https://view.monday.com/6462730033-dcdacc7f624a0fafdfad2558011b1e45?r=use1
 https://view.monday.com/7067633860-4b9339b5fe4f4957f4ac3c6991769395?r=use1
+https://view.monday.com/6265759681-dc9076cc9dd4c09f1d0d59696401024b?r=use1
+https://view.monday.com/6265760602-15ff84c644fd114de2a84f58dbbcc9b2?r=use1
+https://view.monday.com/7741871585-2ebc2d9e8039e4f7f2dd429af1f61c0d?r=use1
+https://view.monday.com/7751658853-e248eb0d3f38f213948a21706bb4735d?r=use1
+https://view.monday.com/7470906336-d7f6b6df950e2810f7b244a8b1641181?r=use1
+https://view.monday.com/6917195148-a4e33cdd18150dbff8239a75e4f0d789?r=use1
 """
     ex_customer_urls = st.sidebar.text_area("Geben Sie die Board-URLs ein (eine pro Zeile):", value=default_ex)
 
